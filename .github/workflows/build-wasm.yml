@@ -1,0 +1,67 @@
+name: Build Horizon WASM Mod
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      update_sdk:
+        description: "Run `cargo horizon-mod update` before building"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo & Horizon SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-horizon-mod
+            ~/.cargo/registry
+            ~/.cargo/git
+            .horizon/sdk
+          key: ${{ runner.os }}-horizon-wasm-${{ hashFiles('Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-horizon-wasm-
+
+      - name: Install cargo-horizon-mod
+        run: |
+          if ! command -v cargo-horizon-mod >/dev/null 2>&1; then
+            cargo install --locked --git https://github.com/horizon-rust/horizon cargo-horizon-mod
+          fi
+
+      - name: Update SDK pin (optional)
+        if: ${{ inputs.update_sdk == true }}
+        run: cargo horizon-mod update
+
+      - name: Build WASM .hmod
+        run: cargo horizon-mod build --wasm
+
+      - name: Check packaged .hmod
+        run: cargo horizon-mod check target/horizon-mod/bridgingmod_horizon.hmod
+
+      - name: Upload .hmod artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridgingmod_horizon-wasm-hmod
+          path: target/horizon-mod/bridgingmod_horizon.hmod
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/horizon-mod/bridgingmod_horizon.hmod
