@@ -5,7 +5,7 @@ version = "2.0.0"
 description = """Reach-around placement: right-click with a block to fill the gap you are looking into, so a bridge
 can be built over an edge without aiming at a block face. Adds a crosshair chevron showing which way the block goes,
 an optional F3 outline and trace, slab/trapdoor assist, and a settings page under Options > Mods."""
-authors = ["xiryuudev", "squeeglii"]
+authors = ["xiryuudev", "squeeglii", "iuaititi"]
 license = "MIT"
 homepage = "https://github.com/xiryuudev/bridgingMod-horizon"
 api = "0.2"
