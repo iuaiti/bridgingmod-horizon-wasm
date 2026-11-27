@@ -16,17 +16,13 @@ use std::cell::RefCell;
 
 /// The mod's id: its settings folder and its key's line.
 pub const ID: &str = "bridgingmod_horizon";
-pub const NAME: &str = "BridgingMod (Horizon)";
-pub const VERSION: &str = "2.0.0";
-pub const DESCRIPTION: &str =
-    "Reach-around placement: place blocks in reach-around gaps, with a direction indicator and F3 box.";
 /// The toggle key's name, and its default (upstream's comma).
 pub const KEY: &str = "toggle";
 pub const DEFAULT_KEY: &str = "key.keyboard.comma";
-/// Said in the action bar when the toggle key turns it on or off.
 /// The chevron's tint: opaque white, so the mod's own image shows as drawn.
 pub const INDICATOR_TINT: u32 = 0xFFFF_FFFF;
 
+/// Said in local chat when the toggle key turns bridging assist on or off.
 pub const ON: &str = "Bridging assist: ON";
 pub const OFF: &str = "Bridging assist: OFF";
 
@@ -159,33 +155,12 @@ impl AxisMode {
             AxisMode::Vertical => !d.is_horizontal(),
         }
     }
-    fn from_name(s: &str) -> Option<Self> {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "horizontal" => Some(AxisMode::Horizontal),
-            "vertical" => Some(AxisMode::Vertical),
-            "both" => Some(AxisMode::Both),
+    pub fn from_choice(index: u32) -> Option<Self> {
+        match index {
+            0 => Some(AxisMode::Both),
+            1 => Some(AxisMode::Horizontal),
+            2 => Some(AxisMode::Vertical),
             _ => None,
-        }
-    }
-    fn name(self) -> &'static str {
-        match self {
-            AxisMode::Horizontal => "horizontal",
-            AxisMode::Vertical => "vertical",
-            AxisMode::Both => "both",
-        }
-    }
-    fn label(self) -> &'static str {
-        match self {
-            AxisMode::Horizontal => "Horizontal",
-            AxisMode::Vertical => "Vertical",
-            AxisMode::Both => "Both",
-        }
-    }
-    fn next(self) -> Self {
-        match self {
-            AxisMode::Horizontal => AxisMode::Vertical,
-            AxisMode::Vertical => AxisMode::Both,
-            AxisMode::Both => AxisMode::Horizontal,
         }
     }
 }
@@ -208,37 +183,13 @@ impl AxisOverride {
             AxisOverride::Both => AxisMode::Both,
         }
     }
-    fn from_name(s: &str) -> Option<Self> {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "horizontal" => Some(AxisOverride::Horizontal),
-            "vertical" => Some(AxisOverride::Vertical),
-            "both" => Some(AxisOverride::Both),
-            "fallback" => Some(AxisOverride::Fallback),
+    pub fn from_choice(index: u32) -> Option<Self> {
+        match index {
+            0 => Some(AxisOverride::Fallback),
+            1 => Some(AxisOverride::Both),
+            2 => Some(AxisOverride::Horizontal),
+            3 => Some(AxisOverride::Vertical),
             _ => None,
-        }
-    }
-    fn name(self) -> &'static str {
-        match self {
-            AxisOverride::Horizontal => "horizontal",
-            AxisOverride::Vertical => "vertical",
-            AxisOverride::Both => "both",
-            AxisOverride::Fallback => "fallback",
-        }
-    }
-    fn label(self) -> &'static str {
-        match self {
-            AxisOverride::Horizontal => "Horizontal",
-            AxisOverride::Vertical => "Vertical",
-            AxisOverride::Both => "Both",
-            AxisOverride::Fallback => "As above",
-        }
-    }
-    fn next(self) -> Self {
-        match self {
-            AxisOverride::Horizontal => AxisOverride::Vertical,
-            AxisOverride::Vertical => AxisOverride::Both,
-            AxisOverride::Both => AxisOverride::Fallback,
-            AxisOverride::Fallback => AxisOverride::Horizontal,
         }
     }
 }
@@ -256,37 +207,13 @@ impl Adjacency {
     pub fn enabled(self) -> bool {
         self != Adjacency::Disabled
     }
-    fn from_name(s: &str) -> Option<Self> {
-        match s.trim().to_ascii_lowercase().as_str() {
-            "disabled" => Some(Adjacency::Disabled),
-            "faces" => Some(Adjacency::Faces),
-            "edges" => Some(Adjacency::Edges),
-            "corners" => Some(Adjacency::Corners),
+    pub fn from_choice(index: u32) -> Option<Self> {
+        match index {
+            0 => Some(Adjacency::Disabled),
+            1 => Some(Adjacency::Faces),
+            2 => Some(Adjacency::Edges),
+            3 => Some(Adjacency::Corners),
             _ => None,
-        }
-    }
-    fn name(self) -> &'static str {
-        match self {
-            Adjacency::Disabled => "disabled",
-            Adjacency::Faces => "faces",
-            Adjacency::Edges => "edges",
-            Adjacency::Corners => "corners",
-        }
-    }
-    fn label(self) -> &'static str {
-        match self {
-            Adjacency::Disabled => "Off",
-            Adjacency::Faces => "Faces",
-            Adjacency::Edges => "Edges",
-            Adjacency::Corners => "Corners",
-        }
-    }
-    fn next(self) -> Self {
-        match self {
-            Adjacency::Disabled => Adjacency::Faces,
-            Adjacency::Faces => Adjacency::Edges,
-            Adjacency::Edges => Adjacency::Corners,
-            Adjacency::Corners => Adjacency::Disabled,
         }
     }
 }
@@ -343,180 +270,6 @@ impl Default for Config {
     }
 }
 
-impl Config {
-    /// From the stored values (`get` reads one key's file); the defaults for
-    /// the ones missing or unreadable.
-    pub fn read(get: impl Fn(&str) -> Option<String>) -> Self {
-        let defaults = Config::default();
-        let flag = |key: &str, default: bool| match get(key).as_deref().map(str::trim) {
-            Some("true") => true,
-            Some("false") => false,
-            _ => default,
-        };
-        let number = |key: &str, default: f64| {
-            get(key)
-                .as_deref()
-                .map(str::trim)
-                .and_then(|v| v.parse::<f64>().ok())
-                .filter(|v| v.is_finite())
-                .unwrap_or(default)
-        };
-        Self {
-            enabled: flag("enabled", defaults.enabled),
-            min_bridge_distance: number("min_bridge_distance", defaults.min_bridge_distance)
-                .clamp(0.0, 100.0),
-            only_bridge_when_crouched: flag(
-                "only_bridge_when_crouched",
-                defaults.only_bridge_when_crouched,
-            ),
-            supported_axes: get("supported_axes")
-                .as_deref()
-                .and_then(AxisMode::from_name)
-                .unwrap_or(defaults.supported_axes),
-            supported_axes_when_crouched: get("supported_axes_when_crouched")
-                .as_deref()
-                .and_then(AxisOverride::from_name)
-                .unwrap_or(defaults.supported_axes_when_crouched),
-            delay_post_bridging: number("delay_post_bridging", defaults.delay_post_bridging.into())
-                .round()
-                .clamp(0.0, 20.0) as i32,
-            show_crosshair: flag("show_crosshair", defaults.show_crosshair),
-            show_outline: flag("show_outline", defaults.show_outline),
-            show_outline_even_when_not_bridging: flag(
-                "show_outline_even_when_not_bridging",
-                defaults.show_outline_even_when_not_bridging,
-            ),
-            non_bridge_respects_crouch_rules: flag(
-                "non_bridge_respects_crouch_rules",
-                defaults.non_bridge_respects_crouch_rules,
-            ),
-            outline_colour: number("outline_colour", f64::from(defaults.outline_colour))
-                .clamp(0.0, 0xFFFF_FFFFu64 as f64) as u32,
-            skip_torch_bridging: flag("skip_torch_bridging", defaults.skip_torch_bridging),
-            enable_slab_assist: flag("enable_slab_assist", defaults.enable_slab_assist),
-            enable_non_solid_replace: flag(
-                "enable_non_solid_replace",
-                defaults.enable_non_solid_replace,
-            ),
-            bridging_snap_strength: number(
-                "bridging_snap_strength",
-                defaults.bridging_snap_strength,
-            )
-            .clamp(0.0, 1.0),
-            bridging_adjacency: get("bridging_adjacency")
-                .as_deref()
-                .and_then(Adjacency::from_name)
-                .unwrap_or(defaults.bridging_adjacency),
-            show_debug_highlight: flag("show_debug_highlight", defaults.show_debug_highlight),
-            show_non_bridging_debug_highlight: flag(
-                "show_non_bridging_debug_highlight",
-                defaults.show_non_bridging_debug_highlight,
-            ),
-            show_debug_trace: flag("show_debug_trace", defaults.show_debug_trace),
-        }
-    }
-
-    /// The settings page's buttons, in the order `click` takes them.
-    pub fn labels(&self) -> Vec<String> {
-        let on = |b: bool| if b { "ON" } else { "OFF" };
-        vec![
-            format!("Bridging assist: {}", on(self.enabled)),
-            format!("Only while crouching: {}", on(self.only_bridge_when_crouched)),
-            format!("Bridge axes: {}", self.supported_axes.label()),
-            format!(
-                "Axes while crouching: {}",
-                self.supported_axes_when_crouched.label()
-            ),
-            format!("Minimum distance: {}%", self.min_bridge_distance.round() as i32),
-            format!("Delay after bridging: {} ticks", self.delay_post_bridging),
-            format!("Crosshair indicator: {}", on(self.show_crosshair)),
-            format!("Debug box: {}", on(self.show_outline)),
-            format!("Slab assist: {}", on(self.enable_slab_assist)),
-            format!(
-                "Replace plants and snow: {}",
-                on(self.enable_non_solid_replace)
-            ),
-            format!("Skip torches: {}", on(self.skip_torch_bridging)),
-            format!("Missed corners: {}", self.bridging_adjacency.label()),
-            format!("F3 debug box: {}", on(self.show_debug_highlight)),
-            format!("F3 trace: {}", on(self.show_debug_trace)),
-        ]
-    }
-
-    /// A click on button `i` of `labels`.
-    pub fn click(&mut self, i: usize) {
-        match i {
-            0 => self.enabled = !self.enabled,
-            1 => self.only_bridge_when_crouched = !self.only_bridge_when_crouched,
-            2 => self.supported_axes = self.supported_axes.next(),
-            3 => self.supported_axes_when_crouched = self.supported_axes_when_crouched.next(),
-            4 => {
-                self.min_bridge_distance = match self.min_bridge_distance.round() as i32 {
-                    d if d < 50 => 50.0,
-                    d if d < 100 => 100.0,
-                    _ => 0.0,
-                }
-            }
-            5 => {
-                self.delay_post_bridging = match self.delay_post_bridging {
-                    0 => 2,
-                    2 => 4,
-                    4 => 0,
-                    _ => 4,
-                }
-            }
-            6 => self.show_crosshair = !self.show_crosshair,
-            7 => self.show_outline = !self.show_outline,
-            8 => self.enable_slab_assist = !self.enable_slab_assist,
-            9 => self.enable_non_solid_replace = !self.enable_non_solid_replace,
-            10 => self.skip_torch_bridging = !self.skip_torch_bridging,
-            11 => self.bridging_adjacency = self.bridging_adjacency.next(),
-            12 => self.show_debug_highlight = !self.show_debug_highlight,
-            13 => self.show_debug_trace = !self.show_debug_trace,
-            _ => {}
-        }
-    }
-
-    /// The values to store, one file per key.
-    pub fn stored(&self) -> Vec<(&'static str, String)> {
-        let flag = |b: bool| if b { "true" } else { "false" }.to_owned();
-        vec![
-            ("enabled", flag(self.enabled)),
-            (
-                "only_bridge_when_crouched",
-                flag(self.only_bridge_when_crouched),
-            ),
-            ("supported_axes", self.supported_axes.name().to_owned()),
-            (
-                "supported_axes_when_crouched",
-                self.supported_axes_when_crouched.name().to_owned(),
-            ),
-            (
-                "min_bridge_distance",
-                format!("{:.1}", self.min_bridge_distance),
-            ),
-            (
-                "delay_post_bridging",
-                self.delay_post_bridging.to_string(),
-            ),
-            ("show_crosshair", flag(self.show_crosshair)),
-            ("show_outline", flag(self.show_outline)),
-            ("enable_slab_assist", flag(self.enable_slab_assist)),
-            (
-                "enable_non_solid_replace",
-                flag(self.enable_non_solid_replace),
-            ),
-            ("skip_torch_bridging", flag(self.skip_torch_bridging)),
-            (
-                "bridging_adjacency",
-                self.bridging_adjacency.name().to_owned(),
-            ),
-            ("show_debug_highlight", flag(self.show_debug_highlight)),
-            ("show_debug_trace", flag(self.show_debug_trace)),
-        ]
-    }
-}
-
 /// A direction whose side may be built off of.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Assist {
@@ -533,6 +286,8 @@ pub struct Hit {
     /// The clicked face; also the direction the item is used in.
     pub face: Dir,
     pub point: [f64; 3],
+    /// Whether the synthetic hit started inside the target block's shape.
+    pub inside: bool,
 }
 
 /// What the search asks the world.
@@ -553,53 +308,18 @@ pub trait SlabWorld {
     fn holding_trapdoor(&self) -> bool;
 }
 
-/// One frame's/tick's answer, and the settings it was computed with.
+/// One frame's/tick's answer, Y fraction, and search trace.
+#[derive(Default)]
 struct State {
-    config: Option<Config>,
     target: Option<Assist>,
     /// `BridgingStateTracker.lastKnownYFrac`.
     y_frac: f64,
-    /// A bridging use is in progress: the crosshair was overridden.
-    using: bool,
-    /// The target of the use in progress.
-    use_target: Option<Pos>,
-    /// The mod image (the indicator sprites) has been uploaded this session.
-    image_uploaded: bool,
     /// The last path, for the F3 trace.
     trace: Vec<Pos>,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            config: None,
-            target: None,
-            y_frac: 0.0,
-            using: false,
-            use_target: None,
-            image_uploaded: false,
-            trace: Vec::new(),
-        }
-    }
-}
-
 thread_local! {
     static STATE: RefCell<State> = RefCell::new(State::default());
-}
-
-/// The settings, read once through `get` (one file per key).
-pub fn config(get: impl Fn(&str) -> Option<String>) -> Config {
-    STATE.with_borrow_mut(|s| *s.config.get_or_insert_with(|| Config::read(get)))
-}
-
-/// The settings, if some code read them already.
-pub fn current_config() -> Option<Config> {
-    STATE.with_borrow(|s| s.config)
-}
-
-/// Replaces the settings (the settings page or the key changed them).
-pub fn set_config(config: Config) {
-    STATE.with_borrow_mut(|s| s.config = Some(config));
 }
 
 /// The last computed target, if any.
@@ -621,40 +341,11 @@ pub fn set_y_frac(v: f64) {
     STATE.with_borrow_mut(|s| s.y_frac = v);
 }
 
-/// Whether the indicator sprites still need uploading.
-pub fn image_uploaded() -> bool {
-    STATE.with_borrow(|s| s.image_uploaded)
-}
-
-pub fn mark_image_uploaded() {
-    STATE.with_borrow_mut(|s| s.image_uploaded = true);
-}
-
-/// A bridging use started on `pos`: the crosshair now points at it.
-pub fn begin_use(pos: Pos) {
-    STATE.with_borrow_mut(|s| {
-        s.using = true;
-        s.use_target = Some(pos);
-    });
-}
-
-/// The use that started ended: the target whose crosshair override is still
-/// to undo, when one is in progress.
-pub fn end_use() -> Option<Pos> {
-    STATE.with_borrow_mut(|s| {
-        let started = std::mem::replace(&mut s.using, false);
-        let target = s.use_target.take();
-        started.then_some(target).flatten()
-    })
-}
-
-/// Forgets the target (disabled, left the world, a screen opened).
+/// Forgets the target and trace (disabled, left the world, or placed a block).
 pub fn reset() {
     STATE.with_borrow_mut(|s| {
         s.target = None;
         s.trace.clear();
-        s.using = false;
-        s.use_target = None;
     });
 }
 
@@ -771,15 +462,16 @@ pub fn bresenham_voxels(config: &Config, start: Pos, end: Pos) -> Vec<Pos> {
         if end.z >= start.z { 1 } else { -1 },
     );
     let mut working = start;
-    let adjacency = config.bridging_adjacency.enabled();
+    let adjacency = config.bridging_adjacency;
     let push = |points: &mut Vec<Pos>, working: Pos| {
-        if adjacency {
+        if adjacency.enabled() {
             points.extend(missed_points(
                 points,
                 working,
                 start,
                 end,
                 config.bridging_snap_strength,
+                adjacency,
             ));
         }
         points.push(working);
@@ -844,7 +536,11 @@ fn missed_points(
     line_start: Pos,
     line_end: Pos,
     extent_mult: f64,
+    adjacency: Adjacency,
 ) -> Vec<Pos> {
+    if matches!(adjacency, Adjacency::Disabled | Adjacency::Faces) {
+        return Vec::new();
+    }
     let Some(&last_point) = points.last() else {
         return Vec::new();
     };
@@ -874,7 +570,7 @@ fn missed_points(
             ));
         }
     }
-    if diff == 3 {
+    if diff == 3 && adjacency == Adjacency::Corners {
         for d in [
             [point_delta.x, 0, 0],
             [0, point_delta.y, 0],
@@ -1021,6 +717,7 @@ pub fn place_assist_target<S: SlabWorld>(
         pos,
         face: dir,
         point: pos.center(),
+        inside: true,
     }
 }
 
@@ -1037,11 +734,15 @@ fn horizontal_slab_assist(pos: Pos, y_frac: f64) -> Option<Hit> {
         pos,
         face: if lower { Dir::Up } else { Dir::Down },
         point,
+        inside: false,
     })
 }
 
 /// `Bridge.handleVerticalSlabAssist`: combine two slabs into a double slab.
 fn vertical_slab_assist<S: SlabWorld>(slabs: &S, dir: Dir, pos: Pos) -> Option<Hit> {
+    if !slabs.holding_slab() {
+        return None;
+    }
     let support = pos.offset(dir.opposite());
     let top = slabs.slab_half(support)?;
     if top && dir != Dir::Down {
@@ -1056,6 +757,7 @@ fn vertical_slab_assist<S: SlabWorld>(slabs: &S, dir: Dir, pos: Pos) -> Option<H
         pos: support,
         face: dir,
         point: pos.center(),
+        inside: false,
     })
 }
 
@@ -1197,27 +899,26 @@ mod tests {
     }
 
     #[test]
-    fn config_round_trip() {
-        let stored: Vec<(&str, String)> = Config::default()
-            .stored()
-            .into_iter()
-            .map(|(k, v)| (k, v))
-            .collect();
-        let get = |key: &str| {
-            stored
-                .iter()
-                .find(|(k, _)| *k == key)
-                .map(|(_, v)| v.clone())
-        };
-        assert_eq!(Config::read(get), Config::default());
-        let mut c = Config::default();
-        c.click(0);
-        c.click(2);
-        assert_eq!(c.enabled, false);
-        // The default is `Both`, and `Both.next()` is `Horizontal`. The 1.0.1
-        // bundle asserted `Vertical` here, but that assertion never ran: the
-        // bundle was compiled into the game, where `cfg(test)` never applies.
-        assert_eq!(c.supported_axes, AxisMode::Horizontal);
+    fn choice_conversions() {
+        assert_eq!(AxisMode::from_choice(0), Some(AxisMode::Both));
+        assert_eq!(AxisMode::from_choice(1), Some(AxisMode::Horizontal));
+        assert_eq!(AxisMode::from_choice(2), Some(AxisMode::Vertical));
+        assert_eq!(AxisMode::from_choice(3), None);
+
+        assert_eq!(AxisOverride::from_choice(0), Some(AxisOverride::Fallback));
+        assert_eq!(AxisOverride::from_choice(1), Some(AxisOverride::Both));
+        assert_eq!(
+            AxisOverride::from_choice(2),
+            Some(AxisOverride::Horizontal)
+        );
+        assert_eq!(AxisOverride::from_choice(3), Some(AxisOverride::Vertical));
+        assert_eq!(AxisOverride::from_choice(4), None);
+
+        assert_eq!(Adjacency::from_choice(0), Some(Adjacency::Disabled));
+        assert_eq!(Adjacency::from_choice(1), Some(Adjacency::Faces));
+        assert_eq!(Adjacency::from_choice(2), Some(Adjacency::Edges));
+        assert_eq!(Adjacency::from_choice(3), Some(Adjacency::Corners));
+        assert_eq!(Adjacency::from_choice(4), None);
     }
 
     #[test]
@@ -1246,6 +947,147 @@ mod tests {
         assert_eq!(hit.pos, Pos::new(3, 64, -2));
         assert_eq!(hit.face, Dir::Down);
         assert_eq!(hit.point, [3.5, 64.5, -1.5]);
+        assert!(hit.inside);
+    }
+
+    #[test]
+    fn horizontal_slab_assist_sets_inside_false_and_half() {
+        struct SlabMock;
+        impl SlabWorld for SlabMock {
+            fn slab_half(&self, _pos: Pos) -> Option<bool> {
+                None
+            }
+            fn holding_slab(&self) -> bool {
+                true
+            }
+            fn holding_trapdoor(&self) -> bool {
+                false
+            }
+        }
+        let assist = Assist {
+            pos: Pos::new(1, 64, 2),
+            side: Dir::North,
+        };
+        let lower = place_assist_target(&SlabMock, &Config::default(), assist, 0.5);
+        assert_eq!(lower.pos, Pos::new(1, 64, 2));
+        assert_eq!(lower.face, Dir::Up);
+        assert_eq!(lower.point, [1.5, 64.1, 2.5]);
+        assert!(!lower.inside);
+
+        let upper = place_assist_target(&SlabMock, &Config::default(), assist, 0.0);
+        assert_eq!(upper.pos, Pos::new(1, 64, 2));
+        assert_eq!(upper.face, Dir::Down);
+        assert_eq!(upper.point, [1.5, 64.9, 2.5]);
+        assert!(!upper.inside);
+    }
+
+    #[test]
+    fn vertical_slab_assist_combines_slabs_but_not_trapdoors() {
+        struct SlabMock {
+            top: Option<bool>,
+            slab: bool,
+            trapdoor: bool,
+        }
+        impl SlabWorld for SlabMock {
+            fn slab_half(&self, _pos: Pos) -> Option<bool> {
+                self.top
+            }
+            fn holding_slab(&self) -> bool {
+                self.slab
+            }
+            fn holding_trapdoor(&self) -> bool {
+                self.trapdoor
+            }
+        }
+
+        let bottom_slab_support = SlabMock {
+            top: Some(false),
+            slab: true,
+            trapdoor: false,
+        };
+        let hit_up = place_assist_target(
+            &bottom_slab_support,
+            &Config::default(),
+            Assist {
+                pos: Pos::new(0, 65, 0),
+                side: Dir::Down,
+            },
+            0.0,
+        );
+        assert_eq!(hit_up.pos, Pos::new(0, 64, 0));
+        assert_eq!(hit_up.face, Dir::Up);
+        assert_eq!(hit_up.point, [0.5, 65.5, 0.5]);
+        assert!(!hit_up.inside);
+
+        let top_slab_support = SlabMock {
+            top: Some(true),
+            slab: true,
+            trapdoor: false,
+        };
+        let hit_down = place_assist_target(
+            &top_slab_support,
+            &Config::default(),
+            Assist {
+                pos: Pos::new(0, 63, 0),
+                side: Dir::Up,
+            },
+            0.0,
+        );
+        assert_eq!(hit_down.pos, Pos::new(0, 64, 0));
+        assert_eq!(hit_down.face, Dir::Down);
+        assert_eq!(hit_down.point, [0.5, 63.5, 0.5]);
+        assert!(!hit_down.inside);
+
+        let trapdoor_off_slab = SlabMock {
+            top: Some(false),
+            slab: false,
+            trapdoor: true,
+        };
+        let hit_trapdoor = place_assist_target(
+            &trapdoor_off_slab,
+            &Config::default(),
+            Assist {
+                pos: Pos::new(0, 65, 0),
+                side: Dir::Down,
+            },
+            0.0,
+        );
+        assert_eq!(hit_trapdoor.pos, Pos::new(0, 65, 0));
+        assert_eq!(hit_trapdoor.face, Dir::Up);
+        assert!(hit_trapdoor.inside);
+    }
+
+    #[test]
+    fn adjacency_controls_missed_points() {
+        let mut cfg = Config::default();
+
+        cfg.bridging_adjacency = Adjacency::Disabled;
+        assert_eq!(
+            bresenham_voxels(&cfg, Pos::new(0, 0, 0), Pos::new(1, 1, 0)).len(),
+            2
+        );
+
+        cfg.bridging_adjacency = Adjacency::Faces;
+        assert_eq!(
+            bresenham_voxels(&cfg, Pos::new(0, 0, 0), Pos::new(1, 1, 0)).len(),
+            2
+        );
+
+        cfg.bridging_adjacency = Adjacency::Edges;
+        assert_eq!(
+            bresenham_voxels(&cfg, Pos::new(0, 0, 0), Pos::new(1, 1, 0)).len(),
+            4
+        );
+        assert_eq!(
+            bresenham_voxels(&cfg, Pos::new(0, 0, 0), Pos::new(1, 1, 1)).len(),
+            2
+        );
+
+        cfg.bridging_adjacency = Adjacency::Corners;
+        assert_eq!(
+            bresenham_voxels(&cfg, Pos::new(0, 0, 0), Pos::new(1, 1, 1)).len(),
+            8
+        );
     }
 
     #[test]

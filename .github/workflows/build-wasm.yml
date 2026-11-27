@@ -11,7 +11,7 @@ on:
         description: "Run `cargo horizon-mod update` before building"
         required: false
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -53,6 +53,9 @@ jobs:
 
       - name: Check packaged .hmod
         run: cargo horizon-mod check target/horizon-mod/bridgingmod_horizon.hmod
+
+      - name: Run unit tests
+        run: cargo test --lib
 
       - name: Upload .hmod artifact
         uses: actions/upload-artifact@v4
