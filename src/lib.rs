@@ -161,7 +161,7 @@ impl BridgingMod {
         }));
     }
 
-    /// The chevron over the crosshair.
+    /// The direction indicator flanking the crosshair.
     fn crosshair(&self, host: &dyn ClientHost, layer: &str, draw: &mut dyn DrawContext) {
         if layer != "minecraft:crosshair"
             || !host.on(ID)
@@ -178,18 +178,18 @@ impl BridgingMod {
             return;
         };
         // The direction the block goes, from the side the support was found on:
-        // a support above the gap draws the "down" chevron.
+        // a support above the gap draws the "down" indicator.
         let alignment = runtime::placement_alignment(target.side);
         let icon = 32.0;
         let [w, h] = draw.size();
         let x = ((w - icon + 1.0) / 2.0).floor();
         let mut y = ((h - icon + 1.0) / 2.0).floor();
         // The F3 debug screen covers the middle of the screen: the 1.0.1
-        // bundle pushed the chevron down 15 GUI pixels there.
+        // bundle pushed the indicator down 15 GUI pixels there.
         if !host.native_corner_shown(Corner::TopLeft) {
             y += 15.0;
         }
-        chevron(draw, [x, y], icon, alignment, runtime::INDICATOR_TINT);
+        draw_indicator(draw, [x, y], alignment, runtime::INDICATOR_TINT);
     }
 
     /// Submit the placement outline and F3 debug/trace boxes in world space.
@@ -206,17 +206,18 @@ impl BridgingMod {
         };
         let f3_open = !host.native_corner_shown(Corner::TopLeft);
         let mut lines = Vec::new();
-        if config.show_outline {
-            push_block_outline(&mut lines, target.pos, config.outline_colour, 2.0);
-        }
-        if f3_open && config.show_debug_highlight {
-            push_block_outline(&mut lines, target.pos, 0xCC_00_FF_88, 2.0);
-            push_block_outline(
-                &mut lines,
-                target.pos.offset(target.side),
-                0xCC_FF_AA_00,
-                2.0,
-            );
+        let show_box = if f3_open {
+            config.show_debug_highlight
+        } else {
+            config.show_outline
+        };
+        if show_box {
+            let color = if f3_open {
+                0xCC_00_FF_88
+            } else {
+                config.outline_colour
+            };
+            push_block_outline(&mut lines, target.pos, color, 1.5);
         }
         if f3_open && config.show_debug_trace {
             for pos in runtime::trace() {
@@ -229,49 +230,71 @@ impl BridgingMod {
     }
 }
 
-/// Compute the two quad arms of the direction chevron in GUI pixels.
-fn chevron_quads(at: [f32; 2], size: f32, alignment: &str) -> [[[f32; 2]; 4]; 2] {
-    // The arrow points the way the block goes: "up" means the block lands
-    // above the crosshair, so the bar points up.
-    let (dx, dy) = match alignment {
-        "up" => (0.0, -1.0),
-        "down" => (0.0, 1.0),
-        _ => (1.0, 0.0),
-    };
-    let [x, y] = at;
-    let half = size / 2.0;
-    let cx = x + half;
-    let cy = y + half;
-    // The tip, and the two ends of the arms, `thick` wide.
-    let arm = half * 0.55;
-    let thick = size * 0.16;
-    let tip = [cx + dx * arm, cy + dy * arm];
-    // Perpendicular to the direction.
-    let (px, py) = (-dy, dx);
-    let mut quads = [[[0.0; 2]; 4]; 2];
-    for (idx, side) in [-1.0_f32, 1.0].into_iter().enumerate() {
-        let base = [
-            cx - dx * arm * 0.15 + px * arm * side,
-            cy - dy * arm * 0.15 + py * arm * side,
-        ];
-        // A bar from the tip to a base corner, offset perpendicular to the arm.
-        let (vx, vy) = (base[0] - tip[0], base[1] - tip[1]);
-        let len = (vx * vx + vy * vy).sqrt().max(0.0001);
-        let (ux, uy) = ((-vy / len) * (thick / 2.0), (vx / len) * (thick / 2.0));
-        quads[idx] = [
-            [tip[0] + ux, tip[1] + uy],
-            [base[0] + ux, base[1] + uy],
-            [base[0] - ux, base[1] - uy],
-            [tip[0] - ux, tip[1] - uy],
-        ];
+/// Pixel-perfect 32x32 crosshair indicator rectangles matching upstream
+/// `squeeglii/BridgingMod` (`indicator/{up,down,horizontal}.png`).
+/// All pixels sit outside the central 15x15 vanilla crosshair (`8..23`).
+const INDICATOR_UP: &[[f32; 4]] = &[
+    // Left up-arrow
+    [5.0, 12.0, 1.0, 1.0],
+    [4.0, 13.0, 1.0, 1.0],
+    [6.0, 13.0, 1.0, 1.0],
+    [3.0, 14.0, 1.0, 1.0],
+    [7.0, 14.0, 1.0, 1.0],
+    [5.0, 15.0, 1.0, 4.0],
+    // Right up-arrow
+    [25.0, 12.0, 1.0, 1.0],
+    [24.0, 13.0, 1.0, 1.0],
+    [26.0, 13.0, 1.0, 1.0],
+    [23.0, 14.0, 1.0, 1.0],
+    [27.0, 14.0, 1.0, 1.0],
+    [25.0, 15.0, 1.0, 4.0],
+];
+
+const INDICATOR_DOWN: &[[f32; 4]] = &[
+    // Left down-arrow
+    [5.0, 12.0, 1.0, 4.0],
+    [3.0, 16.0, 1.0, 1.0],
+    [7.0, 16.0, 1.0, 1.0],
+    [4.0, 17.0, 1.0, 1.0],
+    [6.0, 17.0, 1.0, 1.0],
+    [5.0, 18.0, 1.0, 1.0],
+    // Right down-arrow
+    [25.0, 12.0, 1.0, 4.0],
+    [23.0, 16.0, 1.0, 1.0],
+    [27.0, 16.0, 1.0, 1.0],
+    [24.0, 17.0, 1.0, 1.0],
+    [26.0, 17.0, 1.0, 1.0],
+    [25.0, 18.0, 1.0, 1.0],
+];
+
+const INDICATOR_HORIZONTAL: &[[f32; 4]] = &[
+    // Left `<` bracket
+    [7.0, 13.0, 1.0, 1.0],
+    [6.0, 14.0, 1.0, 1.0],
+    [5.0, 15.0, 1.0, 1.0],
+    [6.0, 16.0, 1.0, 1.0],
+    [7.0, 17.0, 1.0, 1.0],
+    // Right `>` bracket
+    [23.0, 13.0, 1.0, 1.0],
+    [24.0, 14.0, 1.0, 1.0],
+    [25.0, 15.0, 1.0, 1.0],
+    [24.0, 16.0, 1.0, 1.0],
+    [23.0, 17.0, 1.0, 1.0],
+];
+
+fn indicator_rects(alignment: &str) -> &'static [[f32; 4]] {
+    match alignment {
+        "up" => INDICATOR_UP,
+        "down" => INDICATOR_DOWN,
+        _ => INDICATOR_HORIZONTAL,
     }
-    quads
 }
 
-/// Draw the direction chevron: two thick bars meeting at a point, in one colour.
-fn chevron(draw: &mut dyn DrawContext, at: [f32; 2], size: f32, alignment: &str, argb: u32) {
-    for quad in chevron_quads(at, size, alignment) {
-        draw.quad(quad, argb);
+/// Draw the flanking direction indicator around the crosshair.
+fn draw_indicator(draw: &mut dyn DrawContext, at: [f32; 2], alignment: &str, argb: u32) {
+    let [x, y] = at;
+    for &[rx, ry, rw, rh] in indicator_rects(alignment) {
+        draw.fill([x + rx, y + ry, rw, rh], argb);
     }
 }
 
@@ -474,27 +497,24 @@ pub fn default_config() -> Config {
 
 #[cfg(test)]
 mod tests {
-    use super::chevron_quads;
-
-    fn quad_area(q: [[f32; 2]; 4]) -> f32 {
-        let mut sum = 0.0_f32;
-        for i in 0..4 {
-            let [x1, y1] = q[i];
-            let [x2, y2] = q[(i + 1) % 4];
-            sum += x1 * y2 - x2 * y1;
-        }
-        0.5 * sum.abs()
-    }
+    use super::indicator_rects;
 
     #[test]
-    fn chevron_quads_have_positive_area() {
-        for align in ["up", "down", "horizontal"] {
-            for quad in chevron_quads([100.0, 100.0], 32.0, align) {
+    fn indicator_matches_upstream_and_clears_crosshair() {
+        for (align, expected_pixels) in [("up", 18.0_f32), ("down", 18.0), ("horizontal", 10.0)] {
+            let rects = indicator_rects(align);
+            let mut total_area = 0.0_f32;
+            for &[rx, ry, rw, rh] in rects {
+                assert!(rw > 0.0 && rh > 0.0);
+                assert!(rx >= 0.0 && rx + rw <= 32.0);
+                assert!(ry >= 0.0 && ry + rh <= 32.0);
                 assert!(
-                    quad_area(quad) > 10.0,
-                    "chevron alignment {align} produced degenerate quad {quad:?}"
+                    rx + rw <= 8.0 || rx >= 23.0,
+                    "indicator {align} overlaps central crosshair: [{rx}, {ry}, {rw}, {rh}]"
                 );
+                total_area += rw * rh;
             }
+            assert_eq!(total_area, expected_pixels);
         }
     }
 }
