@@ -18,7 +18,7 @@ mod runtime;
 const BLOCK_REACH: f64 = 4.5;
 
 use mod_api::{
-    ClientHost, ClientTickPostEvent, Corner, DrawContext, Flow, GuiLayerPostEvent, Hand, Hooks,
+    ClientHost, ClientTickPostEvent, Corner, DrawContext, Flow, GuiLayerPostEvent, Hooks,
     HudMode, InputKeyEvent, InteractionKey, InteractionKeyMappingTriggeredEvent, KeyAction,
     KeyRegistration, Registrar, RegistrationContext, SettingSpec, SubmitCustomGeometryEvent, Text,
     WorldDepth, WorldLine,
